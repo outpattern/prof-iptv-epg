@@ -25,9 +25,10 @@ permissions:
   contents: read
 
 # The quality threshold: channels that must have something on now, or nothing is published.
-# Repository variable EPG_MIN_CHANNELS; 40 when unset (lower it with a narrow source policy).
+# Repository variable EPG_MIN_CHANNELS; 25 when unset, which suits the elcinema.com-only policy
+# (about 47 channels asked); raise it as permitted sources are added.
 env:
-  MIN_CHANNELS: ${{ vars.EPG_MIN_CHANNELS || '40' }}
+  MIN_CHANNELS: ${{ vars.EPG_MIN_CHANNELS || '25' }}
 
 concurrency:
   group: pages
@@ -65,12 +66,14 @@ jobs:
         # Egypt, the Arabic-language list and the Middle East, three days. Exits non-zero, with
         # nothing written, when fewer than MIN_CHANNELS channels have something on now.
         #
-        # The source policy (README, "Sources"): repository variables EPG_SKIP_SITES (sites never
-        # asked; when unset, shahid.mbc.net, whose terms forbid scraping and redistribution) and
-        # EPG_ONLY_SITES (when set, the only sites asked), comma-separated.
+        # The source policy (README, "Sources"). A whitelist: only the sites whose terms allow
+        # their schedules to be republished are asked - repository variable EPG_ONLY_SITES,
+        # comma-separated, elcinema.com when unset; there is no "every site" value, so an
+        # unverified source can only be added by naming it. shahid.mbc.net, whose terms forbid
+        # scraping and redistribution, is never asked; EPG_SKIP_SITES adds to it.
         env:
-          SKIP_SITES: ${{ vars.EPG_SKIP_SITES || 'shahid.mbc.net' }}
-          ONLY_SITES: ${{ vars.EPG_ONLY_SITES }}
+          SKIP_SITES: shahid.mbc.net,${{ vars.EPG_SKIP_SITES }}
+          ONLY_SITES: ${{ vars.EPG_ONLY_SITES || 'elcinema.com' }}
         run: >-
           node tools/build-free-tv-guide.mjs --epg epg --out build --days 3 --delay 1000
           --min-channels "$MIN_CHANNELS" --drop-descriptions

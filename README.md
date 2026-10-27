@@ -24,18 +24,24 @@ domain) from the sites iptv-org's `guides.json` lists for these channels. **The 
 to those sites**, and each site's own terms apply; every published guide credits the sites it
 used (`current.json` → `sources`, and the site's front page).
 
-Which sites are asked is the source policy, set with two repository variables (Settings →
-Secrets and variables → Actions → Variables), comma-separated:
+Only sites whose terms allow their schedules to be republished are asked. Today that is
+**elcinema.com** alone, which allows non-commercial republishing on condition that the source is
+fully credited ([elcinema.com/copyrights](https://elcinema.com/copyrights/)). Every other site,
+including any not yet reviewed, is left out; **shahid.mbc.net** is never asked (its terms forbid
+scraping and redistributing its content).
+
+The policy is set with repository variables (Settings → Secrets and variables → Actions →
+Variables), comma-separated:
 
 | Variable | Meaning | When unset |
 | --- | --- | --- |
-| `EPG_SKIP_SITES` | sites never asked | `shahid.mbc.net` (its terms forbid scraping and redistributing its content) |
-| `EPG_ONLY_SITES` | when set, the only sites asked | every site not skipped |
-| `EPG_MIN_CHANNELS` | channels that must have something on now, or nothing is published | `40` (lower it with a narrow `EPG_ONLY_SITES`) |
+| `EPG_ONLY_SITES` | the whitelist: the only sites asked. Add a site only once its terms (or its written permission) allow republishing | `elcinema.com` |
+| `EPG_SKIP_SITES` | sites never asked, on top of `shahid.mbc.net`, which is always skipped | `shahid.mbc.net` only |
+| `EPG_MIN_CHANNELS` | channels that must have something on now, or nothing is published | `25` (suits elcinema.com alone; raise it as sources are added) |
 | `EPG_ENABLED` | `true` to build and publish | nothing runs |
 
-A site that objects is added to `EPG_SKIP_SITES`; its schedules are gone from the next day's
-guide. To ask for that, open an issue in this repository.
+A site that objects is removed from `EPG_ONLY_SITES` (or added to `EPG_SKIP_SITES`); its
+schedules are gone from the next day's guide. To ask for that, open an issue in this repository.
 
 ## Setup (once)
 
