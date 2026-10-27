@@ -1,0 +1,2 @@
+# The guide is built on Linux runners: every text file is stored and checked out with LF endings.
+* text=auto eol=lf
