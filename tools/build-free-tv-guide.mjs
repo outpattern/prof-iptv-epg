@@ -30,6 +30,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from "node
 import { gunzipSync, gzipSync } from "node:zlib";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepare as prepareElcinema } from "./elcinema-cairo.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -82,6 +83,21 @@ if (!channelsFile) {
   process.stderr.write(made.stderr);
 }
 const wanted = [...readFileSync(channelsFile, "utf8").matchAll(/xmltv_id="([^"]+)"/g)].map((m) => m[1]);
+
+/* elcinema.com's clock: measured from its pages before the grab (tools/elcinema-cairo.mjs). A
+ * measurement that does not check out stops the build here, before anything is grabbed. */
+let elcinema = null;
+try {
+  elcinema = await prepareElcinema({ epg, channelsFile, work: join(work, "elcinema"), delay, log: (line) => console.error(line) });
+} catch (error) {
+  console.error(`elcinema.com times could not be measured: ${error.message}`);
+  console.error("not published: the last good guide stays");
+  process.exit(1);
+}
+if (elcinema) {
+  const shown = Object.entries(elcinema.offsets).map(([day, minutes]) => `${day}: ${minutes / 60} h`).join(", ");
+  console.error(`elcinema.com, ${elcinema.pages} pages: its clock is Cairo's ${shown}`);
+}
 
 /* 2. The grab, then one fallback pass. */
 const raw = join(work, "guide.xml");
@@ -136,6 +152,8 @@ const report = {
   placeholders,
   dropDescriptions,
   sitePolicy: { skip: skipSites, only: onlySites },
+  // elcinema.com's clock against Cairo's, per Cairo day, as measured for this build (minutes).
+  elcinema: elcinema && { pages: elcinema.pages, offsets: elcinema.offsets, earliest: elcinema.earliest },
 };
 writeFileSync(join(work, "report.json"), JSON.stringify(report, null, 2));
 console.error(
@@ -178,7 +196,12 @@ function runGrab(channels, output, logName) {
       "--maxConnections=1",
       `--delay=${delay}`,
     ],
-    { cwd: epg, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, env: { ...process.env, TZ: "Africa/Cairo" } },
+    { cwd: epg, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, env: {
+        ...process.env,
+        TZ: "Africa/Cairo",
+        ...(elcinema ? { PROF_ELCINEMA_OFFSETS: elcinema.file } : {}),
+      },
+    },
   );
   writeFileSync(join(work, logName), `${grab.stdout ?? ""}${grab.stderr ?? ""}`);
 }

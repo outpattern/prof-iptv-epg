@@ -47,6 +47,16 @@ jobs:
           cd epg && node -r @swc-node/register scripts/commands/epg/grab.ts \
             --channels=../diagnose/channels.xml --output=../diagnose/grabbed.xml --days=2 --maxConnections=1 \
             > ../diagnose/grab.log 2>&1 || true
+      - name: The complete guide build, as the guide workflow runs it - kept only in the artifact
+        env:
+          MIN_CHANNELS: ${{ vars.EPG_MIN_CHANNELS || '25' }}
+          SKIP_SITES: shahid.mbc.net,${{ vars.EPG_SKIP_SITES }}
+          ONLY_SITES: ${{ vars.EPG_ONLY_SITES || 'elcinema.com' }}
+        run: |
+          (cd epg && npm run api:load)
+          node tools/build-free-tv-guide.mjs --epg epg --out diagnose/build --days 3 --delay 1000 \
+            --min-channels "$MIN_CHANNELS" --drop-descriptions --skip-sites="$SKIP_SITES" --only-sites="$ONLY_SITES" \
+            > diagnose/build.log 2>&1 || echo "the build failed; see build.log"
       - uses: actions/upload-artifact@v4
         with:
           name: elcinema-diagnose
