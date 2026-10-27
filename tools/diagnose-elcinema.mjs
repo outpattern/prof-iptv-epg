@@ -4,7 +4,10 @@
  * so a guide built here can be compared with the site's own page. Run by the `diagnose` workflow
  * (manual only, deploys nothing); its output is the workflow's artifact.
  *
- *   node tools/diagnose-elcinema.mjs --epg <iptv-org/epg checkout> --out <dir>
+ *   node tools/diagnose-elcinema.mjs --epg <iptv-org/epg checkout> --out <dir> [--channels <file>]
+ *
+ * `--channels` is a grabber channel list (tools/free-tv-guide-channels.mjs); its elcinema.com
+ * channels are the ones fetched. Without it, three Egyptian channels checked by hand.
  *
  * Why: a guide built on a GitHub runner had every elcinema.com time 6 hours early, while the same
  * code run in Egypt matched the site exactly. elcinema.com writes its times without an offset, so
@@ -14,14 +17,14 @@
  * programmes the site's parser reads from it - once with the grabber's clock set to Cairo (as the
  * build runs it) and once to UTC; plus `machine.json` (this machine's clock and zone).
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 /** Egyptian channels whose elcinema.com pages were checked by hand. */
-const CHANNELS = [
+const DEFAULT_CHANNELS = [
   { site_id: "1278", xmltv_id: "MBCMasr2.eg@SD", name: "MBC Masr 2" },
   { site_id: "1239", xmltv_id: "MBCMasr.eg@SD", name: "MBC Masr" },
   { site_id: "1119", xmltv_id: "AlMasriyah.eg@SD", name: "Al Masriyah" },
@@ -34,6 +37,19 @@ const option = (name) => {
   return args[at].includes("=") ? args[at].split("=").slice(1).join("=") : args[at + 1];
 };
 
+/** The channels to fetch: `--channels`' elcinema.com entries, or the default three. */
+function channelsOf(file) {
+  if (!file) return DEFAULT_CHANNELS;
+  return [...readFileSync(file, "utf8").matchAll(/<channel\s([^>]*)>([^<]*)</g)]
+    .map(([, attrs, name]) => ({
+      site: (attrs.match(/site="([^"]+)"/) ?? [])[1],
+      site_id: (attrs.match(/site_id="([^"]+)"/) ?? [])[1],
+      xmltv_id: (attrs.match(/xmltv_id="([^"]+)"/) ?? [])[1],
+      name,
+    }))
+    .filter((c) => c.site === "elcinema.com" && c.site_id && c.xmltv_id);
+}
+
 if (option("parse")) {
   // Child mode: parse saved pages with the site's parser under this process's TZ.
   const epg = resolve(option("epg"));
@@ -42,12 +58,11 @@ if (option("parse")) {
   const config = require(join(epg, "sites/elcinema.com/elcinema.com.config.js"));
   const dayjs = require("dayjs");
   dayjs.extend(require("dayjs/plugin/utc"));
-  const { readFileSync } = await import("node:fs");
   const result = {};
-  for (const channel of CHANNELS) {
+  for (const channel of JSON.parse(readFileSync(join(dir, "channels.json"), "utf8"))) {
     const content = readFileSync(join(dir, `${channel.site_id}.html`), "utf8");
     result[channel.xmltv_id] = {};
-    for (const offset of [0, 1, 2]) {
+    for (const offset of [0, 1, 2, 3]) {
       const date = dayjs.utc().startOf("d").add(offset, "d");
       const programs = config.parser({ content, channel: { ...channel, lang: "ar" }, date });
       result[channel.xmltv_id][date.format("YYYY-MM-DD")] = programs.map((p) => ({
@@ -64,6 +79,8 @@ if (option("parse")) {
 const epg = resolve(option("epg") ?? "epg");
 const out = resolve(option("out") ?? "diagnose");
 mkdirSync(out, { recursive: true });
+const CHANNELS = channelsOf(option("channels"));
+writeFileSync(join(out, "channels.json"), JSON.stringify(CHANNELS, null, 2));
 const require = createRequire(join(epg, "package.json"));
 const config = require(join(epg, "sites/elcinema.com/elcinema.com.config.js"));
 

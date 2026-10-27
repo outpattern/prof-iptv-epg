@@ -31,8 +31,10 @@ jobs:
       - name: Grabber packages (no install scripts)
         run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: epg
-      - name: Fetch and parse elcinema.com as this runner sees it
-        run: node tools/diagnose-elcinema.mjs --epg epg --out diagnose
+      - name: Fetch and parse elcinema.com as this runner sees it (every elcinema.com channel of Free TV's lists)
+        run: |
+          node tools/free-tv-guide-channels.mjs --only-sites=elcinema.com > elcinema.channels.xml
+          node tools/diagnose-elcinema.mjs --epg epg --out diagnose --channels elcinema.channels.xml
       - name: The grabber itself, for the same channels, as the build runs it
         env:
           TZ: Africa/Cairo
